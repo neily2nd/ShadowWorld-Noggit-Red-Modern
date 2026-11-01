@@ -4,6 +4,9 @@
 
 #include <noggit/MapChunk.h>
 #include <noggit/MapTile.h>
+#include <noggit/Action.hpp>
+#include <noggit/ActionManager.hpp>
+#include <noggit/MapView.h>
 #include <noggit/Selection.h>
 #include <noggit/scoped_blp_texture_reference.hpp>
 #include <noggit/texture_set.hpp>
@@ -35,7 +38,10 @@ namespace Noggit
       , layout (new ::QGridLayout(this))
       , _chunk (nullptr)
       , _main_texture_window(current_texture_window)
+      , _map_view(qobject_cast<MapView*>(parent))
     {
+      connect(NOGGIT_ACTION_MGR, &Noggit::ActionManager::currentActionChanged, this,
+        [this](unsigned) { if (_chunk) update(false); });
       setWindowTitle ("Texture Picker");
       setWindowFlags (Qt::Tool | Qt::WindowStaysOnTopHint);
 
@@ -62,6 +68,7 @@ namespace Noggit
                     if (click_label->_is_swap_selected)
                         return;
 
+                    _selected_layer_index = static_cast<int>(i);
                     setTexture(i, current_texture_window);
                   }
                 );
@@ -107,10 +114,13 @@ namespace Noggit
       QPushButton* btn_left = new QPushButton (this);
       QPushButton* btn_right = new QPushButton (this);
       QPushButton* btn_add = new QPushButton (this);
+      _remove_layer_button = new QPushButton("Remove Layer", this);
       btn_left->setIcon(FontAwesomeIcon(FontAwesome::angledoubleleft));
       btn_right->setIcon(FontAwesomeIcon(FontAwesome::angledoubleright));
       btn_add->setIcon(FontAwesomeIcon(FontAwesome::plus));
       btn_add->setToolTip("Add current texture to chunk");
+      _remove_layer_button->setToolTip("Remove the selected layer from this chunk. Its coverage returns to the base texture.");
+      _remove_layer_button->setEnabled(false);
 
       // QPushButton* btn_hide_alphamaps = new QPushButton(this);
       // btn_hide_alphamaps->setIcon(Noggit::Ui::FontNoggitIcon(Noggit::Ui::FontNoggit::Icons::VISIBILITY_HIDDEN_MODELS));
@@ -125,6 +135,7 @@ namespace Noggit
       btn_layout->addWidget (btn_left, 0, 0);
       btn_layout->addWidget (btn_add, 0, 1);
       btn_layout->addWidget (btn_right, 0, 2);
+      btn_layout->addWidget (_remove_layer_button, 1, 0, 1, texture_picker_columns);
 
       // layout->addWidget(btn_hide_alphamaps, 2, 0, 1, 4, Qt::AlignHCenter | Qt::AlignBottom);
 
@@ -164,6 +175,8 @@ namespace Noggit
                 }
               );
 
+      connect(_remove_layer_button, &QPushButton::clicked, this, &texture_picker::removeSelectedLayer);
+
       adjustSize();
       setMinimumSize(sizeHint());
 
@@ -175,13 +188,24 @@ namespace Noggit
             return;
 
         size_t visible_texture_count = std::min(_chunk->texture_set->num(), _labels.size());
+        bool selected_index_valid = _selected_layer_index >= 0
+          && static_cast<std::size_t>(_selected_layer_index) < visible_texture_count
+          && _main_texture_window->filename() == _labels[_selected_layer_index]->filename();
 
         for (size_t index = 0; index < visible_texture_count; ++index)
         {
             _labels[index]->unselect();
             if (_main_texture_window->filename() == _labels[index]->filename())
+            {
                 _labels[index]->select();
+                if (!selected_index_valid && _selected_layer_index < 0)
+                  _selected_layer_index = static_cast<int>(index);
+            }
         }
+        if (!selected_index_valid && _selected_layer_index >= 0
+            && _main_texture_window->filename() != _labels[_selected_layer_index]->filename())
+          _selected_layer_index = -1;
+        updateRemoveButton();
     }
 
     void texture_picker::setMainTexture(current_texture *tex)
@@ -195,6 +219,7 @@ namespace Noggit
       {
         MapChunk* chunk = std::get<selected_chunk_type> (lSelection).chunk;
         _chunk = chunk;
+        _selected_layer_index = -1;
         update(false);
       }
     }
@@ -216,6 +241,40 @@ namespace Noggit
       {
         update(false);
       }
+      else
+      {
+        updateRemoveButton();
+      }
+    }
+
+    void texture_picker::updateRemoveButton()
+    {
+      bool removable = _chunk && _remove_layer_button
+        && _selected_layer_index > 0
+        && static_cast<std::size_t>(_selected_layer_index) < _chunk->texture_set->num();
+      _remove_layer_button->setEnabled(removable);
+    }
+
+    void texture_picker::removeSelectedLayer()
+    {
+      if (!_chunk || !_map_view || _selected_layer_index <= 0
+          || static_cast<std::size_t>(_selected_layer_index) >= _chunk->texture_set->num())
+        return;
+
+      std::size_t const index = static_cast<std::size_t>(_selected_layer_index);
+      auto* action = NOGGIT_ACTION_MGR->beginAction(_map_view, ActionFlags::eCHUNKS_TEXTURE);
+      action->registerChunkTextureChange(_chunk);
+      if (_chunk->texture_set->removeTextureLayer(index))
+      {
+        _chunk->mt->changed = true;
+        update(false);
+        std::size_t selected = std::min<std::size_t>(index, _chunk->texture_set->num() - 1);
+        if (selected == 0 && _chunk->texture_set->num() > 1)
+          selected = 1;
+        _selected_layer_index = static_cast<int>(selected);
+        setTexture(selected, _main_texture_window);
+      }
+      NOGGIT_ACTION_MGR->endAction();
     }
 
     void texture_picker::setTexture
@@ -226,6 +285,7 @@ namespace Noggit
       scoped_blp_texture_reference texture = _textures[id];
 
       emit set_texture(texture);
+      _selected_layer_index = static_cast<int>(id);
       current_texture_window->set_texture(texture->file_key().filepath());
       updateSelection();
     }
@@ -290,7 +350,11 @@ namespace Noggit
         _labels[index]->show();
 
         if (_main_texture_window->filename() == _labels[index]->filename())
+        {
             _labels[index]->select();
+            if (_selected_layer_index < 0)
+              _selected_layer_index = static_cast<int>(index);
+        }
 
         if (_display_alphamaps)
             _alphamap_preview_labels[index]->show();
@@ -354,6 +418,9 @@ namespace Noggit
         _labels[index]->hide();
         _alphamap_preview_labels[index]->hide();
       }
+      if (_selected_layer_index < 0 || static_cast<std::size_t>(_selected_layer_index) >= visible_texture_count)
+        _selected_layer_index = -1;
+      updateSelection();
     }
   }
 }

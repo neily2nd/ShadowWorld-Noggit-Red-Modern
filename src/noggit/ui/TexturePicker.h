@@ -10,6 +10,8 @@
 
 class MapChunk;
 class QGridLayout;
+class QPushButton;
+class MapView;
 
 namespace Noggit
 {
@@ -33,9 +35,11 @@ namespace Noggit
       void setTexture(size_t id, current_texture*);
       void shiftSelectedTextureLeft();
       void shiftSelectedTextureRight();
+      void removeSelectedLayer();
 
     private:
       void update(bool set_changed = true);
+      void updateRemoveButton();
 
       QGridLayout* layout;
       bool _display_alphamaps = true;
@@ -45,6 +49,9 @@ namespace Noggit
       std::vector<QLabel*> _alphamap_preview_labels;
       MapChunk* _chunk;
       current_texture* _main_texture_window;
+      MapView* _map_view;
+      int _selected_layer_index = -1;
+      QPushButton* _remove_layer_button = nullptr;
 
     signals:
       void set_texture(scoped_blp_texture_reference texture);

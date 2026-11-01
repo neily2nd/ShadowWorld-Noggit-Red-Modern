@@ -60,6 +60,8 @@ public:
 
   int addTexture(scoped_blp_texture_reference texture);
   void eraseTexture(size_t id);
+  // Remove one non-base layer and make its coverage part of the implicit base.
+  bool removeTextureLayer(size_t id);
   void eraseTextures();
   // return true if at least 1 texture has been erased
   bool eraseUnusedTextures();

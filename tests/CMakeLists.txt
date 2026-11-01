@@ -93,6 +93,7 @@ if(WIN32)
     "${NOGGIT_SOURCE}/opengl/ScopedTextureArrayBinding.hpp")
   noggit_method_test(object_clipboard object-clipboard "${NOGGIT_SOURCE}/noggit/ui/ObjectEditor.cpp")
   noggit_method_test(texture_paint texture-paint "${NOGGIT_SOURCE}/noggit/texture_set.cpp")
+  noggit_method_test(texture_layer_removal texture-layer-removal "${NOGGIT_SOURCE}/noggit/texture_set.cpp")
   noggit_method_test(async_completion async-completion "${NOGGIT_SOURCE}/noggit/AsyncObject.cpp")
   noggit_method_test(tile_removal tile-removal
     "${NOGGIT_SOURCE}/noggit/world_tile_update_queue.cpp" "${NOGGIT_SOURCE}/noggit/world_model_instances_storage.cpp")

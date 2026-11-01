@@ -483,6 +483,43 @@ void TextureSet::eraseTexture(size_t id)
   _need_lod_texture_map_update = true;
 }
 
+bool TextureSet::removeTextureLayer(size_t id)
+{
+  // Layer zero has no explicit alpha map; keep it as the implicit remainder.
+  if (id == 0 || id >= nTextures || nTextures <= 1)
+    return false;
+
+  // Convert to absolute weights first so deletion works identically while a
+  // brush has uncommitted temporary alpha edits.
+  if (!tmp_edit_values)
+  {
+    tmp_edit_values = std::make_unique<tmp_edit_alpha_values>();
+    for (std::size_t pixel = 0; pixel < 64 * 64; ++pixel)
+    {
+      float base_weight = 255.f;
+      for (std::size_t layer = 1; layer < nTextures; ++layer)
+      {
+        float const weight = alphamaps[layer - 1]
+          ? static_cast<float>(alphamaps[layer - 1]->getAlpha(static_cast<unsigned>(pixel)))
+          : 0.f;
+        (*tmp_edit_values)[layer][pixel] = weight;
+        base_weight -= weight;
+      }
+      (*tmp_edit_values)[0][pixel] = std::max(0.f, base_weight);
+    }
+  }
+
+  auto& weights = *tmp_edit_values;
+  for (std::size_t pixel = 0; pixel < 64 * 64; ++pixel)
+  {
+    weights[0][pixel] += weights[id][pixel];
+  }
+
+  eraseTexture(id);
+  _chunk->registerChunkUpdate(ChunkUpdateFlags::FLAGS);
+  return true;
+}
+
 bool TextureSet::canPaintTexture(scoped_blp_texture_reference const& texture)
 {
   if (nTextures)
