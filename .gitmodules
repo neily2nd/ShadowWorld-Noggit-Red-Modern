@@ -8,8 +8,8 @@
 	branch = shadowworld-modern-retail-preview
 [submodule "cmake"]
 	path = cmake
-	url = https://github.com/Jedert-ShadowWorld/ShadowWorld-Noggit-Red-Modern.git
-	branch = dependency-cmake-noggit
+	url = https://github.com/neily2nd/ShadowWorld-Noggit-Red-Modern.git
+	branch = dependency-cmake-stormlib-zlib
 [submodule "dist/listfile"]
 	path = dist/listfile
 	url = https://gitlab.com/prophecy-rp/build-dependencies.git

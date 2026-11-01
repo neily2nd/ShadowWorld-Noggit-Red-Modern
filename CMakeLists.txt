@@ -118,6 +118,7 @@ FetchContent_MakeAvailable(FastNoise2)
 
 FIND_PACKAGE(Sol2 REQUIRED)
 FIND_PACKAGE(Qt5 COMPONENTS Widgets OpenGLExtensions Gui Network Xml Multimedia Sql REQUIRED)
+FIND_PACKAGE(ZLIB QUIET)
 
 ADD_SUBDIRECTORY("${EXTERNAL_SOURCE_DIR}/qt-color-widgets")
 ADD_SUBDIRECTORY("${EXTERNAL_SOURCE_DIR}/framelesshelper")
@@ -173,7 +174,14 @@ INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/${EXTERNAL_SOURCE_DIR}/PNG2BLP/libimage
 INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/${EXTERNAL_SOURCE_DIR}/PNG2BLP/libpng")
 INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/${EXTERNAL_SOURCE_DIR}/PNG2BLP/libtxc_dxtn")
 INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/${EXTERNAL_SOURCE_DIR}/PNG2BLP/pngpp")
-INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/${EXTERNAL_SOURCE_DIR}/PNG2BLP/zlib")
+set(png_blp_exclude_dirs)
+if (ZLIB_FOUND)
+  message(STATUS "Using external ZLIB::ZLIB for PNG2BLP")
+  list(APPEND png_blp_exclude_dirs "zlib")
+else()
+  message(STATUS "Using bundled PNG2BLP zlib")
+  INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/${EXTERNAL_SOURCE_DIR}/PNG2BLP/zlib")
+endif()
 INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/${EXTERNAL_SOURCE_DIR}/imguizmo")
 INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/${EXTERNAL_SOURCE_DIR}/imguipiemenu")
 INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/${EXTERNAL_SOURCE_DIR}/libnoise/src")
@@ -193,7 +201,7 @@ ELSE()
   collect_files(noggit_root_sources src/noggit TRUE "*.cpp" "")
 ENDIF()
 
-collect_files(png_blp_sources src/external/PNG2BLP TRUE "*.c;*.cpp;" "")
+collect_files(png_blp_sources src/external/PNG2BLP TRUE "*.c;*.cpp;" "${png_blp_exclude_dirs}")
 collect_files(imguizmo_sources src/external/imguizmo FALSE "*.c;*.cpp;" "")
 collect_files(imguipiemenu_sources src/external/imguipiemenu FALSE "*.c;*.cpp;" "")
 collect_files(gradienteditor_sources src/external/qtgradienteditor FALSE "*.c;*.cpp;" "")
@@ -349,6 +357,9 @@ TARGET_LINK_LIBRARIES (noggit
   blizzard-database-library
   rapidfuzz::rapidfuzz
 )
+if (ZLIB_FOUND)
+  TARGET_LINK_LIBRARIES(noggit ZLIB::ZLIB)
+endif()
 include(ExternalProject)
 
 
