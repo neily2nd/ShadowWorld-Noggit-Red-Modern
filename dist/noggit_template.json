@@ -1,0 +1,19 @@
+{
+    "Noggit": {
+        "ApplicationDatabaseDefinitionsPath": "definitions",
+        "ApplicationListFilePath": "listfile.csv",
+        "ApplicationNoggitDefinitionsPath": "noggit-definitions",
+        "ApplicationProjectPath": "projects",
+        "ApplicationThemePath": "themes",
+        "GraphicsConfiguration": {
+            "DepthBufferSize": 24,
+            "SamplesCount": 0,
+            "SwapChainDepth": "TRIPLE",
+            "SwapChainInternal": 0
+        },
+        "LoggingConfiguration": {
+            "ApplicationLoggingPath": "log.txt",
+            "EnableConsoleLogging": false
+        }
+    }
+}

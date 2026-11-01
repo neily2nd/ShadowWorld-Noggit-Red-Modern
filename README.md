@@ -159,6 +159,11 @@ existing save and repair behavior.
 -   Terrain texture loading, painting, and rendering support up to **16
     texture layers per chunk**. This is a code limit, not a guarantee that
     every target client accepts every combination.
+-   The Texture Picker can remove an individual non-base texture layer from
+    the selected chunk. The base layer remains protected, and the operation
+    participates in undo and redo.
+-   Viewport mouse wrapping keeps right-button camera rotation and
+    Alt+middle-button object scaling continuous at the viewport edges.
 -   Modern split ADT saving writes terrain/texture and M2/WMO placement parts
     in the selected modern format, including `_obj1.adt` and `_lod.adt` where
     applicable. WotLK retains its existing ADT save path.
@@ -237,6 +242,10 @@ dependencies:
 
 These repositories are included as Git submodules.
 
+The `cmake` submodule also carries the Windows StormLib integration used by
+this branch: it prefers the package-provided StormLib target and external zlib,
+avoiding the legacy StormLib archive's duplicate zlib symbols.
+
 Clone recursively:
 
 ``` bash
@@ -250,17 +259,11 @@ For an existing clone:
 git submodule update --init --recursive
 ```
 
-Example Windows build with Visual Studio 2022 and Qt 5.15:
-
-``` powershell
-cmake -S . -B build -A x64 -DQt5_DIR="<Qt-install>/lib/cmake/Qt5"
-cmake --build build --config Release --target noggit -j 8
-```
-
+For the tested Visual Studio 2022, vcpkg, Qt deployment and portable ZIP
+workflow, see [Windows build and portable packaging](docs/windows-build.md).
 The executable is written to `build/bin/Release`. Run
-`noggit.exe --project-selector` to always open the project selection
-window instead of automatically loading the configured or favorite
-project.
+`noggit.exe --project-selector` to always open the project selection window
+instead of automatically loading the configured or favorite project.
 
 ## Development Philosophy
 
