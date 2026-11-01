@@ -1,5 +1,29 @@
 # This file is part of Noggit3, licensed under GNU General Public License (version 3).
 
+# Prefer the package-provided target when available. Besides selecting the
+# matching headers and library, it carries StormLib's transitive dependencies.
+find_package(StormLib CONFIG QUIET)
+if (TARGET StormLib::storm)
+  add_library(StormLib INTERFACE)
+  target_link_libraries(StormLib INTERFACE StormLib::storm)
+  set(StormLib_FOUND TRUE)
+  message(STATUS "Using external StormLib package: StormLib::storm")
+  return()
+endif()
+
+# The legacy Windows archive embeds zlib symbols and conflicts with external
+# zlib, so do not silently select it in a build that has external zlib.
+if (WIN32)
+  find_package(ZLIB QUIET)
+  if (ZLIB_FOUND)
+    message(FATAL_ERROR
+      "External StormLib was not found (or did not provide StormLib::storm), "
+      "but external zlib is available. The legacy fetched StormLib archive "
+      "embeds zlib and causes duplicate symbols. Install a compatible "
+      "StormLib package or configure without external zlib.")
+  endif()
+endif()
+
 # adds target StormLib
 FetchContent_Declare(
   stormlib
