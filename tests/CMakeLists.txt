@@ -25,6 +25,9 @@ noggit_test(terrain_lod_updater terrain_lod_updater.cpp
 
 find_package(Qt5 QUIET COMPONENTS Core Widgets)
 if(Qt5_FOUND)
+  noggit_test(cursor_wrap cursor_wrap.cpp)
+  target_link_libraries(cursor_wrap PRIVATE Qt5::Core)
+
   function(noggit_gl_test name)
     noggit_test(${name} ${name}.cpp ${ARGN})
     target_link_libraries(${name} PRIVATE Qt5::Widgets)

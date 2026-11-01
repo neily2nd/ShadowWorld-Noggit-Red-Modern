@@ -81,6 +81,7 @@
 #include <noggit/database/SqlDatabaseManager.h>
 
 #include <QtCore/QSettings>
+#include <QtCore/QEvent>
 
 #include <noggit/scripting/scripting_tool.hpp>
 #include <noggit/scripting/script_settings.hpp>
@@ -258,6 +259,11 @@ using Noggit::YSENS;
 
 void MapView::set_editing_mode(editing_mode mode)
 {
+  _cursor_wrap.reset();
+  _mouse_wrap_cancelled = true;
+  QPoint const mouse_position = mapFromGlobal(QCursor::pos());
+  _cursor_wrap.rebase(mouse_position);
+  _last_mouse_pos = mouse_position;
 
   {
     QSignalBlocker const asset_browser_blocker(_asset_browser_dock);
@@ -3114,6 +3120,11 @@ void MapView::paintGL()
 
 void MapView::resizeGL (int width, int height)
 {
+  QPoint const mouse_position = mapFromGlobal(QCursor::pos());
+  _cursor_wrap.reset();
+  _cursor_wrap.rebase(mouse_position);
+  _last_mouse_pos = mouse_position;
+
   OpenGL::context::scoped_setter const _ (::gl, context());
   gl.viewport(0.0f, 0.0f, width, height);
   emit resized();
@@ -3124,6 +3135,7 @@ void MapView::resizeGL (int width, int height)
 
 MapView::~MapView()
 {
+  _cursor_wrap.reset();
   makeCurrent();
 
   bool const has_current_context = context()
@@ -4079,6 +4091,13 @@ void MapView::checkInputsSettings()
 
 void MapView::focusOutEvent (QFocusEvent*)
 {
+  _cursor_wrap.reset();
+  _mouse_wrap_cancelled = false;
+  _middle_mouse_down = false;
+  QPoint const mouse_position = mapFromGlobal(QCursor::pos());
+  _cursor_wrap.rebase(mouse_position);
+  _last_mouse_pos = mouse_position;
+
   _mod_alt_down = false;
   _mod_ctrl_down = false;
   _mod_shift_down = false;
@@ -4099,12 +4118,43 @@ void MapView::focusOutEvent (QFocusEvent*)
   activeTool()->onFocusLost();
 }
 
+void MapView::changeEvent(QEvent* event)
+{
+  if (event->type() == QEvent::ActivationChange && !isActiveWindow())
+  {
+    _cursor_wrap.reset();
+    _mouse_wrap_cancelled = true;
+  }
+
+  QOpenGLWidget::changeEvent(event);
+}
+
 void MapView::mouseMoveEvent (QMouseEvent* event)
 {
   //! \todo:  move the function call requiring a context in tick ?
   makeCurrent();
   OpenGL::context::scoped_setter const _ (::gl, context());
-  QLineF const relative_movement (_last_mouse_pos, event->pos());
+
+  bool const has_modifier = _mod_shift_down || _mod_ctrl_down || _mod_alt_down || _mod_space_down;
+  bool const rotation_modifier = _mod_shift_down || _mod_ctrl_down || _mod_alt_down;
+  bool const camera_rotation = rightMouse && !has_modifier;
+  bool const object_rotation = terrainMode == editing_mode::object && rightMouse && rotation_modifier;
+  bool const object_manipulation = terrainMode == editing_mode::object
+    && _middle_mouse_down && _world->has_selection();
+  bool const wrap_interaction = !_mouse_wrap_cancelled
+    && (camera_rotation || object_rotation || object_manipulation);
+
+  QPoint const pointer_position = wrap_interaction
+    ? mapFromGlobal(QCursor::pos())
+    : event->pos();
+  std::optional<QPointF> current_cursor_position;
+  if (wrap_interaction)
+  {
+    current_cursor_position = pointer_position;
+    _cursor_wrap.observeWarpEvent(event->globalPos());
+  }
+
+  QLineF const relative_movement = _cursor_wrap.movementTo(event->pos(), current_cursor_position);
 
   if ((look || freelook) && !(_mod_shift_down || _mod_ctrl_down || _mod_alt_down || _mod_space_down))
   {
@@ -4123,7 +4173,7 @@ void MapView::mouseMoveEvent (QMouseEvent* event)
     .mod_num_down = _mod_num_down,
     .mod_space_down = _mod_space_down,
     .relative_movement = relative_movement,
-    .mouse_position = event->pos()
+    .mouse_position = pointer_position
   };
 
   activeTool()->onMouseMove(params);
@@ -4139,7 +4189,23 @@ void MapView::mouseMoveEvent (QMouseEvent* event)
     updown = (relative_movement.dy() / YSENS);
   }
 
-  _last_mouse_pos = event->pos();
+  _last_mouse_pos = pointer_position;
+
+  if (!wrap_interaction)
+  {
+    _cursor_wrap.reset();
+    return;
+  }
+
+  if (auto const target = _cursor_wrap.target(pointer_position,
+      QPoint(qRound(relative_movement.dx()), qRound(relative_movement.dy())), rect()))
+  {
+    QPoint const global_target = mapToGlobal(*target);
+    _cursor_wrap.rebase(*target);
+    _last_mouse_pos = *target;
+    _cursor_wrap.expectWarpAt(global_target);
+    QCursor::setPos(global_target);
+  }
 }
 
 void MapView::change_selected_wmo_nameset(int set)
@@ -4217,6 +4283,12 @@ void MapView::mousePressEvent(QMouseEvent* event)
 
   case Qt::RightButton:
     rightMouse = true;
+    _mouse_wrap_cancelled = false;
+    break;
+
+  case Qt::MiddleButton:
+    _middle_mouse_down = true;
+    _mouse_wrap_cancelled = false;
     break;
 
   default:
@@ -4320,6 +4392,7 @@ void MapView::mouseReleaseEvent (QMouseEvent* event)
     break;
 
   case Qt::RightButton:
+    _cursor_wrap.reset();
     rightMouse = false;
 
     look = false;
@@ -4336,9 +4409,17 @@ void MapView::mouseReleaseEvent (QMouseEvent* event)
 
     break;
 
+  case Qt::MiddleButton:
+    _cursor_wrap.reset();
+    _middle_mouse_down = false;
+    break;
+
   default:
     break;
   }
+
+  if (!rightMouse && !_middle_mouse_down)
+    _mouse_wrap_cancelled = false;
 }
 
 void MapView::save(save_mode mode)
@@ -4774,6 +4855,21 @@ void MapView::ShowContextMenu(QPoint pos)
 
 void MapView::onApplicationStateChanged(Qt::ApplicationState state)
 {
+    if (state != Qt::ApplicationState::ApplicationActive)
+    {
+        _cursor_wrap.reset();
+        _mouse_wrap_cancelled = true;
+        QPoint const mouse_position = mapFromGlobal(QCursor::pos());
+        _cursor_wrap.rebase(mouse_position);
+        _last_mouse_pos = mouse_position;
+        _middle_mouse_down = false;
+        leftMouse = false;
+        rightMouse = false;
+        look = false;
+        freelook = false;
+        activeTool()->onFocusLost();
+    }
+
     // auto interval = _update_every_event_loop.interval();
 
     if (!_settings->value("background_fps_limit", true).toBool())

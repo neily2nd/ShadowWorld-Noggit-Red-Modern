@@ -10,6 +10,7 @@
 #include <noggit/tool_enums.hpp>
 #include <noggit/ui/tools/ViewportGizmo/ViewportGizmo.hpp>
 #include <noggit/ui/tools/ViewportManager/ViewportManager.hpp>
+#include <noggit/ui/tools/ViewportManager/CursorWrap.hpp>
 #include <noggit/ui/uid_fix_mode.hpp>
 #include <opengl/scoped.hpp>
 
@@ -167,6 +168,9 @@ private:
   void ResetSelectedObjectRotation();
 
   QPointF _last_mouse_pos;
+  Noggit::Ui::Tools::ViewportManager::CursorWrap _cursor_wrap;
+  bool _middle_mouse_down = false;
+  bool _mouse_wrap_cancelled = false;
 
   glm::vec3 objMove;
 
@@ -335,6 +339,7 @@ private:
   virtual void keyReleaseEvent (QKeyEvent*) override;
   virtual void keyPressEvent (QKeyEvent*) override;
   virtual void focusOutEvent (QFocusEvent*) override;
+  virtual void changeEvent(QEvent*) override;
   virtual void enterEvent(QEvent*) override;
 
   Noggit::Ui::Windows::NoggitWindow* _main_window;
