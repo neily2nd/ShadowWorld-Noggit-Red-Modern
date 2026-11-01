@@ -6,8 +6,5 @@ if(BUILD_TESTING)
   endif()
 endif()
 
-macro(find_package pkg)
-  if(NOT TARGET "${pkg}")
-    _find_package(${ARGV})
-  endif()
-endmacro()
+## Use CMake's standard find_package command. Defining a local wrapper here
+## conflicts with toolchain package-discovery wrappers such as vcpkg's.
